@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prim's Algorithm Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            cursor: crosshair;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col md:flex-row h-screen w-screen">
+
+    <!-- Controls Panel -->
+    <div class="w-full md:w-80 bg-gray-800 p-6 shadow-2xl z-10 flex flex-col space-y-4 overflow-y-auto">
+        <div class="flex-grow space-y-4">
+            <h1 class="text-2xl font-bold text-indigo-400">Prim's Algorithm Visualizer</h1>
+            <p class="text-sm text-gray-400">
+                Create a graph and visualize Prim's algorithm to find the Minimum Spanning Tree (MST).
+            </p>
+
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold">Controls</h2>
+                
+                <div class="space-y-2">
+                    <label for="speed-control" class="text-sm font-medium text-gray-300 flex justify-between items-center">
+                        <span>Animation Speed</span>
+                        <span id="speed-label" class="font-medium text-indigo-400">Normal</span>
+                    </label>
+                    <input type="range" id="speed-control" min="1" max="3" value="2" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                </div>
+
+                <!-- Edge and Algorithm Controls -->
+                <div class="grid grid-cols-2 gap-2 pt-4 border-t border-gray-700">
+                    <button id="add-node-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-indigo-500 hover:bg-indigo-600">Add Node</button>
+                    <button id="add-edge-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-indigo-500 hover:bg-indigo-600">Add Edge</button>
+                    <button id="run-prims-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed col-span-2 bg-green-600 hover:bg-green-700">Run Prim's</button>
+                    <button id="reset-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed col-span-2 bg-red-600 hover:bg-red-700">Reset</button>
+                </div>
+            </div>
+
+            <!-- Status and Info -->
+            <div>
+                <h2 class="text-lg font-semibold">Status</h2>
+                <div id="status-box" class="mt-2 p-3 bg-gray-700 rounded-lg text-sm text-yellow-300 min-h-[50px]">
+                    Welcome! Click 'Add Node' to start.
+                </div>
+            </div>
+
+            <div>
+                <h2 class="text-lg font-semibold">MST Total Weight</h2>
+                <div id="mst-weight-box" class="mt-2 p-3 bg-gray-700 rounded-lg text-xl font-mono font-bold text-green-400">
+                    0
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Canvas for Graph -->
+    <div class="flex-grow relative bg-gray-900">
+        <canvas id="graph-canvas" class="absolute top-0 left-0"></canvas>
+    </div>
+
+    <!-- Weight Input Modal -->
+    <div id="weight-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-8 shadow-xl space-y-4 w-80">
+            <h3 id="modal-title" class="text-xl font-semibold text-white">Enter Edge Weight</h3>
+            <p class="text-sm text-gray-400">Please provide a positive integer weight for the new edge.</p>
+            <div>
+                <label for="weight-input" class="sr-only">Weight</label>
+                <input type="number" id="weight-input" class="w-full bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g., 5" min="1">
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button id="cancel-weight-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-gray-600 hover:bg-gray-700">Cancel</button>
+                <button id="submit-weight-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700">Add Edge</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================================================
+        // SECTION 1: INITIAL SETUP & DOM ELEMENT SELECTION
+        // ====================================================================================
+
+        // Get the canvas and its 2D rendering context
+        const canvas = document.getElementById('graph-canvas');
+        const ctx = canvas.getContext('2d');
+        const parent = canvas.parentElement;
+
+        // Get references to all UI control elements
+        const addNodeBtn = document.getElementById('add-node-btn');
+        const addEdgeBtn = document.getElementById('add-edge-btn');
+        const runPrimsBtn = document.getElementById('run-prims-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const statusBox = document.getElementById('status-box');
+        const mstWeightBox = document.getElementById('mst-weight-box');
+
+        // Modal elements
+        const weightModal = document.getElementById('weight-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const weightInput = document.getElementById('weight-input');
+        const cancelWeightBtn = document.getElementById('cancel-weight-btn');
+        const submitWeightBtn = document.getElementById('submit-weight-btn');
+
+        // Speed control elements
+        const speedControl = document.getElementById('speed-control');
+        const speedLabel = document.getElementById('speed-label');
+
+        // ====================================================================================
+        // SECTION 2: GLOBAL STATE & CONSTANTS
+        // ====================================================================================
+
+        // --- State Variables ---
+        let nodes = []; // Stores node objects {id, x, y, isInMst, highlightColor}
+        let edges = []; // Stores edge objects {from, to, weight, isInMst, color}
+        let nextNodeId = 0; // Simple counter for unique node IDs
+        let mode = null; // Current user action mode: 'addNode', 'addEdgeStart', 'addEdgeEnd'
+        let selectedNode1 = null; // Stores the first node selected when adding an edge
+        let isAlgorithmRunning = false; // Flag to prevent user interaction during visualization
+        let pendingEdge = null; // Stores {from, to} nodes while waiting for weight input
+        let animationSpeedMs = 1000; // Default animation speed in milliseconds
+
+        // --- Constants for Styling ---
+        const NODE_RADIUS = 15;
+        const NODE_COLOR = '#4f46e5';
+        const NODE_LABEL_COLOR = '#ffffff';
+        const NODE_HIGHLIGHT_COLOR = '#a5b4fc';
+        const MST_NODE_COLOR = '#16a34a'; // Green
+        const EDGE_COLOR = '#6b7280';
+        const MST_EDGE_COLOR = '#22c55e'; // Bright Green
+        const CANDIDATE_EDGE_COLOR = '#facc15'; // Yellow
+        const MIN_EDGE_COLOR = '#f97316'; // Orange
+
+        // ====================================================================================
+        // SECTION 3: DRAWING FUNCTIONS
+        // ====================================================================================
+
+        /**
+         * Clears and redraws the entire canvas based on the current state of nodes and edges.
+         */
+        function draw() {
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw all edges first (so nodes appear on top)
+            edges.forEach(edge => drawEdge(edge));
+
+            // Draw all nodes
+            nodes.forEach(node => drawNode(node));
+        }
+
+        /**
+         * Draws a single node on the canvas.
+         * @param {object} node - The node object to draw.
+         */
+        function drawNode(node) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+            if (node.isInMst) {
+                ctx.fillStyle = MST_NODE_COLOR;
+            } else if (node.highlightColor) {
+                ctx.fillStyle = node.highlightColor;
+            } else if (node.id === selectedNode1) {
+                ctx.fillStyle = NODE_HIGHLIGHT_COLOR;
+            } else {
+                ctx.fillStyle = NODE_COLOR;
+            }
+            ctx.fill();
+
+            // Draw node label (ID)
+            ctx.fillStyle = NODE_LABEL_COLOR;
+            ctx.font = 'bold 14px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.id, node.x, node.y);
+        }
+
+        /**
+         * Draws a single edge (line and weight) on the canvas.
+         * @param {object} edge - The edge object to draw.
+         */
+        function drawEdge(edge) {
+            const fromNode = nodes.find(n => n.id === edge.from);
+            const toNode = nodes.find(n => n.id === edge.to);
+
+            if (!fromNode || !toNode) return;
+
+            // Draw the line
+            ctx.beginPath();
+            ctx.moveTo(fromNode.x, fromNode.y);
+            ctx.lineTo(toNode.x, toNode.y);
+            ctx.strokeStyle = edge.color || EDGE_COLOR;
+            ctx.lineWidth = edge.isInMst ? 4 : 2;
+            ctx.stroke();
+
+            // Draw the weight label
+            ctx.font = '500 14px Inter';
+            ctx.fillStyle = edge.color || EDGE_COLOR;
+            ctx.textAlign = 'center';
+            const midX = (fromNode.x + toNode.x) / 2;
+            const midY = (fromNode.y + toNode.y) / 2;
+            // Add a small background rectangle for readability
+            const textWidth = ctx.measureText(edge.weight).width;
+            ctx.fillStyle = '#111827'; // a bit darker than background
+            ctx.fillRect(midX - textWidth/2 - 2, midY - 10, textWidth + 4, 16);
+
+            ctx.fillStyle = edge.color || EDGE_COLOR;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(edge.weight, midX, midY);
+        }
+
+        // ====================================================================================
+        // SECTION 4: UI & STATE MANAGEMENT
+        // ====================================================================================
+
+        /**
+         * Shows the modal to input an edge's weight.
+         */
+        function showWeightModal() {
+            modalTitle.textContent = `Weight for edge (${pendingEdge.from} - ${pendingEdge.to})`;
+            weightInput.value = '';
+            weightModal.classList.remove('hidden');
+            weightInput.focus(); // Automatically focus the input field
+        }
+
+        /**
+         * Hides the weight input modal and resets related state.
+         */
+        function hideWeightModal() {
+            weightModal.classList.add('hidden');
+            pendingEdge = null;
+            selectedNode1 = null; // Deselect the first node
+            setMode('addEdgeStart'); // Go back to starting a new edge
+            draw(); // Redraw to remove the selection highlight from the node
+        }
+
+        /**
+         * Processes the weight submitted from the modal.
+         */
+        function submitWeight() {
+            const weight = parseInt(weightInput.value);
+            if (!isNaN(weight) && weight > 0) {
+                // If the weight is valid, create the edge
+                edges.push({ from: pendingEdge.from, to: pendingEdge.to, weight: weight });
+                hideWeightModal();
+            } else {
+                // Otherwise, show an error in the status box
+                statusBox.textContent = 'Invalid weight. Please enter a positive number.';
+            }
+        }
+        
+        /**
+         * Sets the current interaction mode and updates the UI accordingly.
+         * @param {string | null} newMode - The new mode to set ('addNode', 'addEdgeStart', etc.).
+         */
+        function setMode(newMode) {
+            mode = newMode;
+            updateButtonStyles();
+            switch (mode) {
+                case 'addNode':
+                    statusBox.textContent = 'Click on the canvas to add a node.';
+                    break;
+                case 'addEdgeStart':
+                    statusBox.textContent = 'Select the first node for the edge.';
+                    break;
+                case 'addEdgeEnd':
+                    statusBox.textContent = `Selected node ${selectedNode1}. Select the second node.`;
+                    break;
+                default:
+                     statusBox.textContent = "Welcome! Click 'Add Node' to start.";
+            }
+        }
+        
+        /**
+         * Visually indicates which mode is active by changing button styles.
+         */
+        function updateButtonStyles() {
+            addNodeBtn.classList.toggle('bg-indigo-700', mode === 'addNode');
+            addNodeBtn.classList.toggle('bg-indigo-500', mode !== 'addNode');
+            addEdgeBtn.classList.toggle('bg-indigo-700', mode === 'addEdgeStart' || mode === 'addEdgeEnd');
+            addEdgeBtn.classList.toggle('bg-indigo-500', mode !== 'addEdgeStart' && mode !== 'addEdgeEnd');
+        }
+
+        /**
+         * Resets the entire application to its initial state.
+         */
+        function reset() {
+            nodes = [];
+            edges = [];
+            nextNodeId = 0;
+            selectedNode1 = null;
+            isAlgorithmRunning = false;
+            setMode(null);
+            mstWeightBox.textContent = '0';
+            statusBox.textContent = "Welcome! Click 'Add Node' to start.";
+            updateControlStates();
+            draw();
+        }
+
+        /**
+         * Enables or disables UI controls based on the application's current state.
+         */
+        function updateControlStates() {
+            const hasNodes = nodes.length > 0;
+            const running = isAlgorithmRunning;
+
+            // Cannot add nodes/edges or run prims if algorithm is running
+            addNodeBtn.disabled = running;
+            addEdgeBtn.disabled = running || !hasNodes;
+            runPrimsBtn.disabled = running || !hasNodes;
+
+            // Speed control should be disabled while algorithm is running
+            speedControl.disabled = running;
+
+            // Reset should be available if there's something to reset or if it's running
+            resetBtn.disabled = running || hasNodes;
+        }
+
+        /**
+         * Resizes the canvas to fit its container element.
+         */
+        function resizeCanvas() {
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            draw();
+        }
+
+        /**
+         * A helper function to pause execution for a specified duration.
+         * @param {number} ms - The duration to sleep in milliseconds.
+         */
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // ====================================================================================
+        // SECTION 5: EVENT LISTENERS
+        // ====================================================================================
+
+        // --- Button Click Listeners ---
+        addNodeBtn.addEventListener('click', () => setMode('addNode'));
+        addEdgeBtn.addEventListener('click', () => setMode('addEdgeStart'));
+        resetBtn.addEventListener('click', reset);
+        runPrimsBtn.addEventListener('click', runPrims);
+
+        // --- Speed Control Listener ---
+        speedControl.addEventListener('input', (e) => {
+            const speedValue = e.target.value;
+            switch(speedValue) {
+                case '1':
+                    animationSpeedMs = 1500;
+                    speedLabel.textContent = 'Slow';
+                    break;
+                case '2':
+                    animationSpeedMs = 1000;
+                    speedLabel.textContent = 'Normal';
+                    break;
+                case '3':
+                    animationSpeedMs = 500;
+                    speedLabel.textContent = 'Fast';
+                    break;
+            }
+        });
+
+        // --- Modal Button Listeners ---
+        cancelWeightBtn.addEventListener('click', hideWeightModal);
+        submitWeightBtn.addEventListener('click', submitWeight);
+        weightInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                submitWeight();
+            }
+        });
+
+        // --- Canvas Click Listener ---
+        canvas.addEventListener('click', (e) => {
+            if (isAlgorithmRunning || pendingEdge) return; // Ignore clicks if algorithm is running or modal is open
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const clickedNode = nodes.find(node => Math.hypot(node.x - x, node.y - y) < NODE_RADIUS);
+
+            if (mode === 'addNode') {
+                if (!clickedNode) { // Only add a node if clicking on an empty space
+                    nodes.push({ id: nextNodeId++, x, y });
+                    updateControlStates();
+                }
+            } else if (mode === 'addEdgeStart') {
+                if (clickedNode) { // User clicked a node to start an edge
+                    selectedNode1 = clickedNode.id;
+                    setMode('addEdgeEnd');
+                }
+            } else if (mode === 'addEdgeEnd') {
+                if (clickedNode && clickedNode.id !== selectedNode1) { // User clicked a second, different node
+                    const edgeExists = edges.some(edge => 
+                        (edge.from === selectedNode1 && edge.to === clickedNode.id) ||
+                        (edge.from === clickedNode.id && edge.to === selectedNode1)
+                    );
+                    if (!edgeExists) {
+                        // Store the pending edge and show the modal to get the weight
+                        pendingEdge = { from: selectedNode1, to: clickedNode.id };
+                        showWeightModal();
+                    } else {
+                        statusBox.textContent = 'An edge between these nodes already exists.';
+                        selectedNode1 = null;
+                        setMode('addEdgeStart');
+                    }
+                }
+            }
+            draw();
+        });
+        
+        // --- Window Resize Listener ---
+        window.addEventListener('resize', resizeCanvas);
+        
+        // ====================================================================================
+        // SECTION 6: PRIM'S ALGORITHM LOGIC
+        // ====================================================================================
+        
+        /**
+         * The main function to execute and visualize Prim's algorithm.
+         */
+        async function runPrims() {
+            if (nodes.length === 0) {
+                statusBox.textContent = "Cannot run Prim's on an empty graph.";
+                return;
+            }
+            
+            isAlgorithmRunning = true;
+            updateControlStates();
+            resetAlgorithmState();
+            
+            let totalWeight = 0;
+            const mstNodes = new Set();
+            const startNode = nodes[0];
+
+            // 1. Start with the first node
+            mstNodes.add(startNode.id);
+            startNode.isInMst = true;
+            statusBox.textContent = `Starting Prim's algorithm from node ${startNode.id}.`;
+            draw();
+            await sleep(animationSpeedMs);
+            
+            // 2. Loop until all nodes are in the MST
+            while (mstNodes.size < nodes.length) {
+                let candidateEdges = [];
+                
+                // 3. Find all edges that connect a node in the MST to a node outside the MST
+                edges.forEach(edge => {
+                    const fromInMst = mstNodes.has(edge.from);
+                    const toInMst = mstNodes.has(edge.to);
+                    if (fromInMst && !toInMst || !fromInMst && toInMst) {
+                        candidateEdges.push(edge);
+                        edge.color = CANDIDATE_EDGE_COLOR;
+                    }
+                });
+                
+                if (candidateEdges.length === 0) {
+                    statusBox.textContent = "Graph is not connected. Cannot form a full MST.";
+                    isAlgorithmRunning = false;
+                    updateControlStates();
+                    return;
+                }
+                
+                statusBox.textContent = `Considering ${candidateEdges.length} edges from the current tree.`;
+                draw();
+                await sleep(animationSpeedMs * 1.5);
+
+                // 4. Find the edge with the minimum weight among all candidate edges
+                const minEdge = candidateEdges.reduce((min, edge) => edge.weight < min.weight ? edge : min, candidateEdges[0]);
+                
+                // 5. Highlight the chosen minimum edge
+                minEdge.color = MIN_EDGE_COLOR;
+                statusBox.textContent = `Choosing edge with minimum weight: ${minEdge.weight}.`;
+                draw();
+                await sleep(animationSpeedMs * 1.5);
+
+                // 6. Add the chosen edge and the new node to the MST
+                minEdge.isInMst = true;
+                minEdge.color = MST_EDGE_COLOR;
+                const newNodeId = mstNodes.has(minEdge.from) ? minEdge.to : minEdge.from;
+                const newNode = nodes.find(n => n.id === newNodeId);
+                newNode.isInMst = true;
+                mstNodes.add(newNodeId);
+                totalWeight += minEdge.weight;
+                mstWeightBox.textContent = totalWeight;
+                
+                // Reset colors for non-MST candidate edges
+                candidateEdges.forEach(e => {
+                    if (!e.isInMst) e.color = EDGE_COLOR;
+                });
+                
+                statusBox.textContent = `Added node ${newNodeId} to the MST.`;
+                draw();
+                await sleep(animationSpeedMs);
+            }
+            
+            // 7. Algorithm finished
+            statusBox.textContent = `MST construction complete! Final weight: ${totalWeight}.`;
+            isAlgorithmRunning = false;
+            updateControlStates();
+        }
+
+        /**
+         * Resets only the visual state of the algorithm (colors, MST flags), not the graph itself.
+         */
+        function resetAlgorithmState() {
+             nodes.forEach(n => {
+                n.isInMst = false;
+             });
+             edges.forEach(e => {
+                e.isInMst = false;
+                e.color = EDGE_COLOR;
+             });
+             mstWeightBox.textContent = '0';
+             draw();
+        }
+        
+        // ====================================================================================
+        // SECTION 7: APP INITIALIZATION
+        // ====================================================================================
+        
+        // Initial call to size the canvas correctly and set initial button states.
+        resizeCanvas();
+        updateControlStates();
+    </script>
+</body>
+</html>
+

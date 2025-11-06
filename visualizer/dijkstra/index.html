@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dijkstra's Algorithm Visualizer</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2220%22%20fill%3D%22%230e7490%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-size%3D%2260%22%20font-weight%3D%22bold%22%20fill%3D%22white%22%20font-family%3D%22Inter%2C%20sans-serif%22%3ED%3C%2Ftext%3E%3C%2Fsvg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            cursor: crosshair;
+            touch-action: none;
+        }
+        #pq-box span {
+            display: inline-block;
+            text-align: center;
+            font-weight: 500;
+            background-color: #0e7490; /* Cyan */
+            color: white;
+            border-radius: 0.375rem; /* rounded-md */
+            margin: 0.25rem;
+            padding: 0.5rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
+        /* Highlight the node with the minimum distance */
+        #pq-box span:first-child {
+            background-color: #facc15; /* Yellow */
+            color: black;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col md:flex-row h-screen w-screen">
+
+    <!-- Controls Panel -->
+    <div class="w-full md:w-80 bg-gray-800 p-6 shadow-2xl z-10 flex flex-col space-y-4 overflow-y-auto">
+        <div class="flex-grow space-y-4">
+            <h1 class="text-2xl font-bold text-cyan-400">Dijkstra's Visualizer</h1>
+            <p class="text-sm text-gray-400">
+                Create a directed graph with non-negative weights and find the shortest paths from Node 0.
+            </p>
+
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold">Controls</h2>
+                
+                <div class="space-y-2">
+                    <label for="speed-control" class="text-sm font-medium text-gray-300 flex justify-between items-center">
+                        <span>Animation Speed</span>
+                        <span id="speed-label" class="font-medium text-cyan-400">Normal</span>
+                    </label>
+                    <input type="range" id="speed-control" min="1" max="3" value="2" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                </div>
+
+                <!-- Edge and Algorithm Controls -->
+                <div class="grid grid-cols-2 gap-2 pt-4 border-t border-gray-700">
+                    <button id="add-node-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-700">Add Node</button>
+                    <button id="add-edge-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-700">Add Edge</button>
+                    <button id="run-dijkstra-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed col-span-2 bg-green-600 hover:bg-green-700">Run Dijkstra's</button>
+                    <button id="reset-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed col-span-2 bg-red-600 hover:bg-red-700">Reset</button>
+                </div>
+            </div>
+
+            <!-- Status and Info -->
+            <div>
+                <h2 class="text-lg font-semibold">Status</h2>
+                <div id="status-box" class="mt-2 p-3 bg-gray-700 rounded-lg text-sm text-yellow-300 min-h-[50px]">
+                    Welcome! Click 'Add Node' to start.
+                </div>
+            </div>
+            
+            <div>
+                <h2 class="text-lg font-semibold">Priority Queue</h2>
+                <div id="pq-box" class="mt-2 p-2 bg-gray-700 rounded-lg min-h-[40px] flex flex-wrap">
+                    <!-- Priority Queue items (Node, Cost) will be added here -->
+                </div>
+            </div>
+
+            <div>
+                <h2 class="text-lg font-semibold">Node Distances (from 0)</h2>
+                <pre id="distances-box" class="mt-2 p-3 bg-gray-700 rounded-lg text-base font-mono text-green-400 min-h-[100px] overflow-y-auto">
+Click 'Add Node' to begin.
+                </pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas for Graph -->
+    <div class="flex-grow relative bg-gray-900">
+        <canvas id="graph-canvas" class="absolute top-0 left-0"></canvas>
+    </div>
+
+    <!-- Weight Input Modal -->
+    <div id="weight-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-8 shadow-xl space-y-4 w-80">
+            <h3 id="modal-title" class="text-xl font-semibold text-white">Enter Edge Weight</h3>
+            <p class="text-sm text-gray-400">Please provide a non-negative integer weight for the new directed edge.</p>
+            <div>
+                <label for="weight-input" class="sr-only">Weight</label>
+                <input type="number" id="weight-input" class="w-full bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:ring-cyan-500 focus:border-cyan-500" placeholder="e.g., 5" min="0">
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button id="cancel-weight-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-gray-600 hover:bg-gray-700">Cancel</button>
+                <button id="submit-weight-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700">Add Edge</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================================================
+        // SECTION 1: INITIAL SETUP & DOM ELEMENT SELECTION
+        // ====================================================================================
+
+        const canvas = document.getElementById('graph-canvas');
+        const ctx = canvas.getContext('2d');
+        const parent = canvas.parentElement;
+
+        const addNodeBtn = document.getElementById('add-node-btn');
+        const addEdgeBtn = document.getElementById('add-edge-btn');
+        const runDijkstraBtn = document.getElementById('run-dijkstra-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const statusBox = document.getElementById('status-box');
+        const distancesBox = document.getElementById('distances-box');
+        const pqBox = document.getElementById('pq-box');
+
+        const weightModal = document.getElementById('weight-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const weightInput = document.getElementById('weight-input');
+        const cancelWeightBtn = document.getElementById('cancel-weight-btn');
+        const submitWeightBtn = document.getElementById('submit-weight-btn');
+
+        const speedControl = document.getElementById('speed-control');
+        const speedLabel = document.getElementById('speed-label');
+
+        // ====================================================================================
+        // SECTION 2: GLOBAL STATE & CONSTANTS
+        // ====================================================================================
+
+        let nodes = [];
+        let edges = [];
+        let nextNodeId = 0;
+        let mode = null;
+        let selectedNode1 = null;
+        let isAlgorithmRunning = false;
+        let pendingEdge = null;
+        let animationSpeedMs = 1000;
+
+        const NODE_RADIUS = 20;
+        const NODE_COLOR = '#06b6d4'; // Cyan
+        const NODE_LABEL_COLOR = '#ffffff';
+        const NODE_HIGHLIGHT_COLOR = '#67e8f9'; // Lighter Cyan
+        const VISITED_NODE_COLOR = '#16a34a'; // Green
+        const CURRENT_NODE_COLOR = '#facc15'; // Yellow
+        const EDGE_COLOR = '#6b7280';
+        const PATH_EDGE_COLOR = '#22c55e'; // Bright Green
+        const CHECKING_EDGE_COLOR = '#a5b4fc'; // Indigo Light
+
+        // ====================================================================================
+        // SECTION 3: DRAWING FUNCTIONS
+        // ====================================================================================
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            edges.forEach(edge => drawEdge(edge));
+            nodes.forEach(node => drawNode(node));
+        }
+
+        function drawNode(node) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+            
+            if (node.color) {
+                 ctx.fillStyle = node.color;
+            } else if (node.id === selectedNode1) {
+                ctx.fillStyle = NODE_HIGHLIGHT_COLOR;
+            } else {
+                ctx.fillStyle = NODE_COLOR;
+            }
+            ctx.fill();
+
+            // Draw node label (ID)
+            ctx.fillStyle = NODE_LABEL_COLOR;
+            ctx.font = 'bold 14px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.id, node.x, node.y - 7);
+            
+            // Draw distance
+            ctx.font = '500 12px Inter';
+            const distText = node.distance === Infinity ? '∞' : node.distance;
+            ctx.fillText(distText, node.x, node.y + 10);
+        }
+
+        function drawEdge(edge) {
+            const fromNode = nodes.find(n => n.id === edge.from);
+            const toNode = nodes.find(n => n.id === edge.to);
+
+            if (!fromNode || !toNode) return;
+
+            const color = edge.color || EDGE_COLOR;
+            const width = 2;
+            
+            const angle = Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x);
+            const startX = fromNode.x + NODE_RADIUS * Math.cos(angle);
+            const startY = fromNode.y + NODE_RADIUS * Math.sin(angle);
+            const endX = toNode.x - NODE_RADIUS * Math.cos(angle);
+            const endY = toNode.y - NODE_RADIUS * Math.sin(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.stroke();
+
+            const headlen = 10;
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Draw weight
+            ctx.font = '500 14px Inter';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            const midX = (startX + endX) / 2;
+            const midY = (startY + endY) / 2;
+            const offsetX = Math.sin(angle) * 15;
+            const offsetY = -Math.cos(angle) * 15;
+
+            const textWidth = ctx.measureText(edge.weight).width;
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(midX + offsetX - textWidth / 2 - 2, midY + offsetY - 10, textWidth + 4, 16);
+            
+            ctx.fillStyle = color;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(edge.weight, midX + offsetX, midY + offsetY);
+        }
+
+        // ====================================================================================
+        // SECTION 4: UI & STATE MANAGEMENT
+        // ====================================================================================
+
+        function showWeightModal() {
+            modalTitle.textContent = `Weight for edge (${pendingEdge.from} -> ${pendingEdge.to})`;
+            weightInput.value = '';
+            weightModal.classList.remove('hidden');
+            weightInput.focus();
+        }
+
+        function hideWeightModal() {
+            weightModal.classList.add('hidden');
+            pendingEdge = null;
+            selectedNode1 = null;
+            setMode('addEdgeStart');
+            draw();
+        }
+
+        function submitWeight() {
+            const weight = parseInt(weightInput.value);
+            if (!isNaN(weight) && weight >= 0) {
+                edges.push({ from: pendingEdge.from, to: pendingEdge.to, weight: weight, color: null });
+                hideWeightModal();
+            } else {
+                statusBox.textContent = 'Invalid weight. Please enter a non-negative number.';
+            }
+        }
+        
+        function setMode(newMode) {
+            mode = newMode;
+            updateButtonStyles();
+            switch (mode) {
+                case 'addNode':
+                    statusBox.textContent = 'Click on the canvas to add a node.';
+                    break;
+                case 'addEdgeStart':
+                    statusBox.textContent = 'Select the first (source) node.';
+                    break;
+                case 'addEdgeEnd':
+                    statusBox.textContent = `Selected node ${selectedNode1}. Select the second (destination) node.`;
+                    break;
+                default:
+                     statusBox.textContent = "Welcome! Click 'Add Node' to start.";
+            }
+        }
+        
+        function updateButtonStyles() {
+            addNodeBtn.classList.toggle('bg-cyan-700', mode === 'addNode');
+            addNodeBtn.classList.toggle('bg-cyan-600', mode !== 'addNode');
+            addEdgeBtn.classList.toggle('bg-cyan-700', mode === 'addEdgeStart' || mode === 'addEdgeEnd');
+            addEdgeBtn.classList.toggle('bg-cyan-600', mode !== 'addEdgeStart' && mode !== 'addEdgeEnd');
+        }
+
+        function reset() {
+            nodes = [];
+            edges = [];
+            nextNodeId = 0;
+            selectedNode1 = null;
+            isAlgorithmRunning = false;
+            setMode(null);
+            statusBox.textContent = "Welcome! Click 'Add Node' to start.";
+            updateDistancesDisplay();
+            updatePriorityQueueDisplay(null);
+            updateControlStates();
+            draw();
+        }
+
+        function updateControlStates() {
+            const hasNodes = nodes.length > 0;
+            const running = isAlgorithmRunning;
+
+            addNodeBtn.disabled = running;
+            addEdgeBtn.disabled = running || !hasNodes;
+            runDijkstraBtn.disabled = running || !hasNodes;
+            speedControl.disabled = running;
+            resetBtn.disabled = running || hasNodes;
+        }
+
+        function resizeCanvas() {
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            draw();
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * Updates the "Node Distances" box in the UI.
+         */
+        function updateDistancesDisplay() {
+            if (nodes.length === 0) {
+                distancesBox.textContent = "Click 'Add Node' to begin.";
+                return;
+            }
+            const sortedNodes = [...nodes].sort((a, b) => a.id - b.id);
+            let text = "";
+            for (const node of sortedNodes) {
+                const dist = node.distance === Infinity ? '∞' : node.distance;
+                text += `Node ${node.id}: ${dist}\n`;
+            }
+            distancesBox.textContent = text;
+        }
+
+        /**
+         * Renders the priority queue in the UI.
+         * @param {object[]} pq - The current priority queue.
+         */
+        function updatePriorityQueueDisplay(pq) {
+            if (pq === null) {
+                pqBox.innerHTML = "";
+                return;
+            }
+            if (pq.length === 0) {
+                pqBox.innerHTML = "<p class='p-2 text-sm text-gray-400'>Empty</p>";
+                return;
+            }
+            
+            // Sort to show the minimum distance at the front
+            const sortedPq = [...pq].sort((a, b) => a.distance - b.distance);
+            pqBox.innerHTML = sortedPq.map(item => `<span>(${item.id}, ${item.distance})</span>`).join('');
+        }
+
+        // ====================================================================================
+        // SECTION 5: EVENT LISTENERS
+        // ====================================================================================
+
+        addNodeBtn.addEventListener('click', () => setMode('addNode'));
+        addEdgeBtn.addEventListener('click', () => setMode('addEdgeStart'));
+        resetBtn.addEventListener('click', reset);
+        runDijkstraBtn.addEventListener('click', runDijkstra);
+
+        speedControl.addEventListener('input', (e) => {
+            const speedValue = e.target.value;
+            switch(speedValue) {
+                case '1':
+                    animationSpeedMs = 1500;
+                    speedLabel.textContent = 'Slow';
+                    break;
+                case '2':
+                    animationSpeedMs = 1000;
+                    speedLabel.textContent = 'Normal';
+                    break;
+                case '3':
+                    animationSpeedMs = 500;
+                    speedLabel.textContent = 'Fast';
+                    break;
+            }
+        });
+
+        cancelWeightBtn.addEventListener('click', hideWeightModal);
+        submitWeightBtn.addEventListener('click', submitWeight);
+        weightInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                submitWeight();
+            }
+        });
+        
+        canvas.addEventListener('click', (e) => {
+            if (isAlgorithmRunning || pendingEdge) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const clickedNode = nodes.find(node => Math.hypot(node.x - x, node.y - y) < NODE_RADIUS);
+
+            if (mode === 'addNode') {
+                if (!clickedNode) {
+                    nodes.push({ 
+                        id: nextNodeId++, 
+                        x, 
+                        y, 
+                        color: null, 
+                        distance: Infinity, 
+                        visited: false 
+                    });
+                    nodes.sort((a, b) => a.id - b.id);
+                    updateControlStates();
+                    updateDistancesDisplay();
+                }
+            } else if (mode === 'addEdgeStart') {
+                if (clickedNode) {
+                    selectedNode1 = clickedNode.id;
+                    setMode('addEdgeEnd');
+                }
+            } else if (mode === 'addEdgeEnd') {
+                if (clickedNode) { 
+                    const edgeExists = edges.some(edge => 
+                        (edge.from === selectedNode1 && edge.to === clickedNode.id)
+                    );
+                    if (!edgeExists) {
+                        pendingEdge = { from: selectedNode1, to: clickedNode.id };
+                        showWeightModal();
+                    } else {
+                        statusBox.textContent = 'A directed edge between these nodes already exists.';
+                        selectedNode1 = null;
+                        setMode('addEdgeStart');
+                    }
+                }
+            }
+            draw();
+        });
+        
+        window.addEventListener('resize', resizeCanvas);
+        
+        // ====================================================================================
+        // SECTION 6: DIJKSTRA'S ALGORITHM LOGIC
+        // ====================================================================================
+        
+        async function runDijkstra() {
+            if (nodes.length === 0) {
+                statusBox.textContent = "Cannot run Dijkstra's on an empty graph.";
+                return;
+            }
+            
+            isAlgorithmRunning = true;
+            updateControlStates();
+            resetAlgorithmState();
+            
+            const sourceNode = nodes.find(n => n.id === 0);
+            if (!sourceNode) {
+                statusBox.textContent = "Graph must contain a Node 0 to use as the source.";
+                isAlgorithmRunning = false;
+                updateControlStates();
+                return;
+            }
+
+            // Simple Priority Queue (using an array)
+            let pq = [];
+            
+            // 1. Initialize source node
+            sourceNode.distance = 0;
+            nodes.forEach(n => {
+                pq.push({ id: n.id, distance: n.distance });
+            });
+            
+            statusBox.textContent = "Starting Dijkstra's from node 0.";
+            updateDistancesDisplay();
+            updatePriorityQueueDisplay(pq);
+            draw();
+            await sleep(animationSpeedMs);
+            
+            // 2. Main loop
+            while (pq.length > 0) {
+                // Sort to find the node with the minimum distance
+                pq.sort((a, b) => a.distance - b.distance);
+                const { id: currentId, distance: currentDist } = pq.shift(); // Extract min
+                
+                const currentNode = nodes.find(n => n.id === currentId);
+
+                if (currentDist === Infinity) {
+                    statusBox.textContent = "All remaining nodes are unreachable.";
+                    await sleep(animationSpeedMs);
+                    break;
+                }
+                
+                currentNode.visited = true;
+                currentNode.color = CURRENT_NODE_COLOR;
+                statusBox.textContent = `Visiting node ${currentId} (dist: ${currentDist}).`;
+                updatePriorityQueueDisplay(pq);
+                draw();
+                await sleep(animationSpeedMs);
+
+                // Find and process neighbors
+                const neighborsEdges = edges.filter(e => e.from === currentId);
+                for (const edge of neighborsEdges) {
+                    const neighborNode = nodes.find(n => n.id === edge.to);
+
+                    if (neighborNode && !neighborNode.visited) {
+                        edge.color = CHECKING_EDGE_COLOR;
+                        draw();
+                        await sleep(animationSpeedMs / 2);
+
+                        const newDist = currentDist + edge.weight;
+                        statusBox.textContent = `Checking neighbor ${neighborNode.id}: new dist (${newDist}) vs old (${neighborNode.distance})`;
+                        
+                        if (newDist < neighborNode.distance) {
+                            // Relaxation
+                            neighborNode.distance = newDist;
+                            // Update distance in priority queue
+                            let pqEntry = pq.find(item => item.id === neighborNode.id);
+                            if (pqEntry) {
+                                pqEntry.distance = newDist;
+                            }
+                            
+                            edge.color = PATH_EDGE_COLOR;
+                            statusBox.textContent = `Relaxed node ${neighborNode.id} to ${newDist}.`;
+                            updateDistancesDisplay();
+                            updatePriorityQueueDisplay(pq);
+                        } else {
+                            edge.color = EDGE_COLOR; // Not a shorter path
+                        }
+                        
+                        draw();
+                        await sleep(animationSpeedMs);
+                    }
+                }
+                
+                // Done with this node
+                currentNode.color = VISITED_NODE_COLOR;
+                draw();
+            }
+
+            // 3. Algorithm finished
+            statusBox.textContent = "Dijkstra's algorithm complete.";
+            isAlgorithmRunning = false;
+            updateControlStates();
+            updatePriorityQueueDisplay(null);
+            draw();
+        }
+
+        /**
+         * Resets algorithm-related properties (colors, distances, etc.) without clearing the graph.
+         */
+        function resetAlgorithmState() {
+             nodes.forEach(n => {
+                n.color = null;
+                n.distance = Infinity;
+                n.visited = false;
+             });
+             edges.forEach(e => {
+                e.color = EDGE_COLOR;
+             });
+             updateDistancesDisplay();
+             updatePriorityQueueDisplay(null);
+             draw();
+        }
+        
+        // ====================================================================================
+        // SECTION 7: APP INITIALIZATION
+        // ====================================================================================
+        
+        resizeCanvas();
+        updateControlStates();
+        updateDistancesDisplay();
+    </script>
+</body>
+</html>
+

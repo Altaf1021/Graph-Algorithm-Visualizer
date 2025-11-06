@@ -1,0 +1,13 @@
+body {
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+}
+
+canvas {
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.btn {
+    @apply px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed;
+}

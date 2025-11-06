@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kruskal's Algorithm Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            cursor: crosshair;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col md:flex-row h-screen w-screen">
+
+    <!-- Controls Panel -->
+    <div class="w-full md:w-80 bg-gray-800 p-6 shadow-2xl z-10 flex flex-col space-y-4 overflow-y-auto">
+        <div class="flex-grow space-y-4">
+            <h1 class="text-2xl font-bold text-teal-400">Kruskal's Algorithm Visualizer</h1>
+            <p class="text-sm text-gray-400">
+                Create a graph and visualize Kruskal's algorithm to find the Minimum Spanning Tree (MST).
+            </p>
+
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold">Controls</h2>
+                
+                <div class="space-y-2">
+                    <label for="speed-control" class="text-sm font-medium text-gray-300 flex justify-between items-center">
+                        <span>Animation Speed</span>
+                        <span id="speed-label" class="font-medium text-teal-400">Normal</span>
+                    </label>
+                    <input type="range" id="speed-control" min="1" max="3" value="2" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-teal-500">
+                </div>
+
+                <!-- Edge and Algorithm Controls -->
+                <div class="grid grid-cols-2 gap-2 pt-4 border-t border-gray-700">
+                    <button id="add-node-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-teal-600 hover:bg-teal-700">Add Node</button>
+                    <button id="add-edge-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-teal-600 hover:bg-teal-700">Add Edge</button>
+                    <button id="run-kruskals-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed col-span-2 bg-green-600 hover:bg-green-700">Run Kruskal's</button>
+                    <button id="reset-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed col-span-2 bg-red-600 hover:bg-red-700">Reset</button>
+                </div>
+            </div>
+
+            <!-- Status and Info -->
+            <div>
+                <h2 class="text-lg font-semibold">Status</h2>
+                <div id="status-box" class="mt-2 p-3 bg-gray-700 rounded-lg text-sm text-yellow-300 min-h-[50px]">
+                    Welcome! Click 'Add Node' to start.
+                </div>
+            </div>
+
+            <div>
+                <h2 class="text-lg font-semibold">MST Total Weight</h2>
+                <div id="mst-weight-box" class="mt-2 p-3 bg-gray-700 rounded-lg text-xl font-mono font-bold text-green-400">
+                    0
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas for Graph -->
+    <div class="flex-grow relative bg-gray-900">
+        <canvas id="graph-canvas" class="absolute top-0 left-0"></canvas>
+    </div>
+
+    <!-- Weight Input Modal -->
+    <div id="weight-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-8 shadow-xl space-y-4 w-80">
+            <h3 id="modal-title" class="text-xl font-semibold text-white">Enter Edge Weight</h3>
+            <p class="text-sm text-gray-400">Please provide a positive integer weight for the new edge.</p>
+            <div>
+                <label for="weight-input" class="sr-only">Weight</label>
+                <input type="number" id="weight-input" class="w-full bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:ring-teal-500 focus:border-teal-500" placeholder="e.g., 5" min="1">
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button id="cancel-weight-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-gray-600 hover:bg-gray-700">Cancel</button>
+                <button id="submit-weight-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700">Add Edge</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================================================
+        // SECTION 1: INITIAL SETUP & DOM ELEMENT SELECTION
+        // ====================================================================================
+
+        const canvas = document.getElementById('graph-canvas');
+        const ctx = canvas.getContext('2d');
+        const parent = canvas.parentElement;
+
+        const addNodeBtn = document.getElementById('add-node-btn');
+        const addEdgeBtn = document.getElementById('add-edge-btn');
+        const runKruskalsBtn = document.getElementById('run-kruskals-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const statusBox = document.getElementById('status-box');
+        const mstWeightBox = document.getElementById('mst-weight-box');
+        
+        const weightModal = document.getElementById('weight-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const weightInput = document.getElementById('weight-input');
+        const cancelWeightBtn = document.getElementById('cancel-weight-btn');
+        const submitWeightBtn = document.getElementById('submit-weight-btn');
+
+        const speedControl = document.getElementById('speed-control');
+        const speedLabel = document.getElementById('speed-label');
+
+        // ====================================================================================
+        // SECTION 2: GLOBAL STATE & CONSTANTS
+        // ====================================================================================
+
+        let nodes = [];
+        let edges = [];
+        let nextNodeId = 0;
+        let mode = null;
+        let selectedNode1 = null;
+        let isAlgorithmRunning = false;
+        let pendingEdge = null;
+        let animationSpeedMs = 1000;
+
+        const NODE_RADIUS = 15;
+        const NODE_COLOR = '#0d9488'; // Teal
+        const NODE_LABEL_COLOR = '#ffffff';
+        const NODE_HIGHLIGHT_COLOR = '#5eead4'; // Lighter Teal
+        const MST_NODE_COLOR = '#16a34a'; // Green
+        const EDGE_COLOR = '#6b7280';
+        const MST_EDGE_COLOR = '#22c55e'; // Bright Green
+        const CHECKING_EDGE_COLOR = '#facc15'; // Yellow
+        const DISCARDED_EDGE_COLOR = '#ef4444'; // Red
+
+        // ====================================================================================
+        // SECTION 3: DRAWING FUNCTIONS
+        // ====================================================================================
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            edges.forEach(edge => drawEdge(edge));
+            nodes.forEach(node => drawNode(node));
+        }
+
+        function drawNode(node) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = node.id === selectedNode1 ? NODE_HIGHLIGHT_COLOR : NODE_COLOR;
+            ctx.fill();
+
+            // Draw node label (ID)
+            ctx.fillStyle = NODE_LABEL_COLOR;
+            ctx.font = 'bold 14px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.id, node.x, node.y);
+        }
+
+        function drawEdge(edge) {
+            const fromNode = nodes.find(n => n.id === edge.from);
+            const toNode = nodes.find(n => n.id === edge.to);
+
+            if (!fromNode || !toNode) return;
+
+            ctx.beginPath();
+            ctx.moveTo(fromNode.x, fromNode.y);
+            ctx.lineTo(toNode.x, toNode.y);
+            ctx.strokeStyle = edge.color || EDGE_COLOR;
+            ctx.lineWidth = edge.isInMst ? 4 : 2;
+            ctx.stroke();
+
+            ctx.font = '500 14px Inter';
+            ctx.fillStyle = edge.color || EDGE_COLOR;
+            ctx.textAlign = 'center';
+            const midX = (fromNode.x + toNode.x) / 2;
+            const midY = (fromNode.y + toNode.y) / 2;
+            const textWidth = ctx.measureText(edge.weight).width;
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(midX - textWidth / 2 - 2, midY - 10, textWidth + 4, 16);
+
+            ctx.fillStyle = edge.color || EDGE_COLOR;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(edge.weight, midX, midY);
+        }
+
+        // ====================================================================================
+        // SECTION 4: UI & STATE MANAGEMENT
+        // ====================================================================================
+
+        function showWeightModal() {
+            modalTitle.textContent = `Weight for edge (${pendingEdge.from} - ${pendingEdge.to})`;
+            weightInput.value = '';
+            weightModal.classList.remove('hidden');
+            weightInput.focus();
+        }
+
+        function hideWeightModal() {
+            weightModal.classList.add('hidden');
+            pendingEdge = null;
+            selectedNode1 = null;
+            setMode('addEdgeStart');
+            draw();
+        }
+
+        function submitWeight() {
+            const weight = parseInt(weightInput.value);
+            if (!isNaN(weight) && weight > 0) {
+                edges.push({ from: pendingEdge.from, to: pendingEdge.to, weight: weight });
+                hideWeightModal();
+            } else {
+                statusBox.textContent = 'Invalid weight. Please enter a positive number.';
+            }
+        }
+        
+        function setMode(newMode) {
+            mode = newMode;
+            updateButtonStyles();
+            switch (mode) {
+                case 'addNode':
+                    statusBox.textContent = 'Click on the canvas to add a node.';
+                    break;
+                case 'addEdgeStart':
+                    statusBox.textContent = 'Select the first node for the edge.';
+                    break;
+                case 'addEdgeEnd':
+                    statusBox.textContent = `Selected node ${selectedNode1}. Select the second node.`;
+                    break;
+                default:
+                     statusBox.textContent = "Welcome! Click 'Add Node' to start.";
+            }
+        }
+        
+        function updateButtonStyles() {
+            addNodeBtn.classList.toggle('bg-teal-700', mode === 'addNode');
+            addNodeBtn.classList.toggle('bg-teal-600', mode !== 'addNode');
+            addEdgeBtn.classList.toggle('bg-teal-700', mode === 'addEdgeStart' || mode === 'addEdgeEnd');
+            addEdgeBtn.classList.toggle('bg-teal-600', mode !== 'addEdgeStart' && mode !== 'addEdgeEnd');
+        }
+
+        function reset() {
+            nodes = [];
+            edges = [];
+            nextNodeId = 0;
+            selectedNode1 = null;
+            isAlgorithmRunning = false;
+            setMode(null);
+            mstWeightBox.textContent = '0';
+            statusBox.textContent = "Welcome! Click 'Add Node' to start.";
+            updateControlStates();
+            draw();
+        }
+
+        function updateControlStates() {
+            const hasNodes = nodes.length > 0;
+            const running = isAlgorithmRunning;
+
+            addNodeBtn.disabled = running;
+            addEdgeBtn.disabled = running || !hasNodes;
+            runKruskalsBtn.disabled = running || !hasNodes;
+            speedControl.disabled = running;
+            resetBtn.disabled = running || hasNodes;
+        }
+
+        function resizeCanvas() {
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            draw();
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // ====================================================================================
+        // SECTION 5: EVENT LISTENERS
+        // ====================================================================================
+
+        addNodeBtn.addEventListener('click', () => setMode('addNode'));
+        addEdgeBtn.addEventListener('click', () => setMode('addEdgeStart'));
+        resetBtn.addEventListener('click', reset);
+        runKruskalsBtn.addEventListener('click', runKruskals);
+
+        speedControl.addEventListener('input', (e) => {
+            const speedValue = e.target.value;
+            switch(speedValue) {
+                case '1':
+                    animationSpeedMs = 1500;
+                    speedLabel.textContent = 'Slow';
+                    break;
+                case '2':
+                    animationSpeedMs = 1000;
+                    speedLabel.textContent = 'Normal';
+                    break;
+                case '3':
+                    animationSpeedMs = 500;
+                    speedLabel.textContent = 'Fast';
+                    break;
+            }
+        });
+
+        cancelWeightBtn.addEventListener('click', hideWeightModal);
+        submitWeightBtn.addEventListener('click', submitWeight);
+        weightInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                submitWeight();
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (isAlgorithmRunning || pendingEdge) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const clickedNode = nodes.find(node => Math.hypot(node.x - x, node.y - y) < NODE_RADIUS);
+
+            if (mode === 'addNode') {
+                if (!clickedNode) {
+                    nodes.push({ id: nextNodeId++, x, y });
+                    updateControlStates();
+                }
+            } else if (mode === 'addEdgeStart') {
+                if (clickedNode) {
+                    selectedNode1 = clickedNode.id;
+                    setMode('addEdgeEnd');
+                }
+            } else if (mode === 'addEdgeEnd') {
+                if (clickedNode && clickedNode.id !== selectedNode1) {
+                    const edgeExists = edges.some(edge => 
+                        (edge.from === selectedNode1 && edge.to === clickedNode.id) ||
+                        (edge.from === clickedNode.id && edge.to === selectedNode1)
+                    );
+                    if (!edgeExists) {
+                        pendingEdge = { from: selectedNode1, to: clickedNode.id };
+                        showWeightModal();
+                    } else {
+                        statusBox.textContent = 'An edge between these nodes already exists.';
+                        selectedNode1 = null;
+                        setMode('addEdgeStart');
+                    }
+                }
+            }
+            draw();
+        });
+        
+        window.addEventListener('resize', resizeCanvas);
+        
+        // ====================================================================================
+        // SECTION 6: KRUSKAL'S ALGORITHM LOGIC
+        // ====================================================================================
+        
+        // Disjoint Set Union (DSU) data structure for cycle detection
+        class DSU {
+            constructor(nodes) {
+                this.parent = {};
+                nodes.forEach(node => {
+                    this.parent[node.id] = node.id;
+                });
+            }
+
+            find(i) {
+                if (this.parent[i] === i) {
+                    return i;
+                }
+                return this.parent[i] = this.find(this.parent[i]);
+            }
+
+            union(i, j) {
+                let rootI = this.find(i);
+                let rootJ = this.find(j);
+                if (rootI !== rootJ) {
+                    this.parent[rootI] = rootJ;
+                    return true;
+                }
+                return false;
+            }
+        }
+        
+        async function runKruskals() {
+            if (edges.length === 0) {
+                statusBox.textContent = "Cannot run Kruskal's without edges.";
+                return;
+            }
+            
+            isAlgorithmRunning = true;
+            updateControlStates();
+            resetAlgorithmState();
+            
+            let totalWeight = 0;
+            const mstEdges = [];
+            const dsu = new DSU(nodes);
+
+            // 1. Sort all edges by weight in ascending order
+            const sortedEdges = [...edges].sort((a, b) => a.weight - b.weight);
+            statusBox.textContent = 'Sorting all edges by weight...';
+            await sleep(animationSpeedMs);
+            
+            // 2. Iterate through sorted edges
+            for (const edge of sortedEdges) {
+                // Highlight the edge being considered
+                edge.color = CHECKING_EDGE_COLOR;
+                statusBox.textContent = `Checking edge (${edge.from}-${edge.to}) with weight ${edge.weight}.`;
+                draw();
+                await sleep(animationSpeedMs);
+
+                // 3. Check if adding the edge forms a cycle
+                if (dsu.union(edge.from, edge.to)) {
+                    // No cycle, so add it to the MST
+                    edge.isInMst = true;
+                    edge.color = MST_EDGE_COLOR;
+                    mstEdges.push(edge);
+                    totalWeight += edge.weight;
+                    mstWeightBox.textContent = totalWeight;
+                    statusBox.textContent = `Added edge (${edge.from}-${edge.to}). It doesn't form a cycle.`;
+                    draw();
+                    await sleep(animationSpeedMs);
+                } else {
+                    // A cycle would be formed, so discard the edge
+                    edge.color = DISCARDED_EDGE_COLOR;
+                    statusBox.textContent = `Discarded edge (${edge.from}-${edge.to}). It would form a cycle.`;
+                    draw();
+                    await sleep(animationSpeedMs);
+                }
+                
+                // If MST is complete, stop early
+                if (mstEdges.length === nodes.length - 1) {
+                    break;
+                }
+            }
+            
+            // 4. Algorithm finished
+            statusBox.textContent = `MST construction complete! Final weight: ${totalWeight}.`;
+            // Reset color of any remaining edges that were not checked
+            edges.forEach(e => { if(!e.isInMst) e.color = EDGE_COLOR; });
+            draw();
+            isAlgorithmRunning = false;
+            updateControlStates();
+        }
+
+        function resetAlgorithmState() {
+             edges.forEach(e => {
+                e.isInMst = false;
+                e.color = EDGE_COLOR;
+             });
+             mstWeightBox.textContent = '0';
+             draw();
+        }
+        
+        // ====================================================================================
+        // SECTION 7: APP INITIALIZATION
+        // ====================================================================================
+        
+        resizeCanvas();
+        updateControlStates();
+    </script>
+</body>
+</html>

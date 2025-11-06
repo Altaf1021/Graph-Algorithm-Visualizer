@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2220%22%20fill%3D%22%2316a34a%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20font-size%3D%2260%22%20font-weight%3D%22bold%22%20fill%3D%22white%22%20font-family%3D%22Inter%2C%20sans-serif%22%3EV%3C%2Ftext%3E%3C%2Fsvg%3E">
+    <title>Bellman-Ford Algorithm Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            cursor: crosshair;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col md:flex-row h-screen w-screen">
+
+    <!-- Controls Panel -->
+    <div class="w-full md:w-80 bg-gray-800 p-6 shadow-2xl z-10 flex flex-col space-y-4 overflow-y-auto">
+        <div class="flex-grow space-y-4">
+            <h1 class="text-2xl font-bold text-blue-400">Bellman-Ford Visualizer</h1>
+            <p class="text-sm text-gray-400">
+                Create a directed graph (with negative weights) and find the shortest paths from Node 0.
+            </p>
+
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold">Controls</h2>
+                
+                <div class="space-y-2">
+                    <label for="speed-control" class="text-sm font-medium text-gray-300 flex justify-between items-center">
+                        <span>Animation Speed</span>
+                        <span id="speed-label" class="font-medium text-blue-400">Normal</span>
+                    </label>
+                    <input type="range" id="speed-control" min="1" max="3" value="2" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                </div>
+
+                <!-- Edge and Algorithm Controls -->
+                <div class="grid grid-cols-2 gap-2 pt-4 border-t border-gray-700">
+                    <button id="add-node-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700">Add Node</button>
+                    <button id="add-edge-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-700">Add Edge</button>
+                    <button id="run-bellman-ford-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed col-span-2 bg-green-600 hover:bg-green-700">Run Bellman-Ford</button>
+                    <button id="reset-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed col-span-2 bg-red-600 hover:bg-red-700">Reset</button>
+                </div>
+            </div>
+
+            <!-- Status and Info -->
+            <div>
+                <h2 class="text-lg font-semibold">Status</h2>
+                <div id="status-box" class="mt-2 p-3 bg-gray-700 rounded-lg text-sm text-yellow-300 min-h-[50px]">
+                    Welcome! Click 'Add Node' to start.
+                </div>
+            </div>
+
+            <div>
+                <h2 class="text-lg font-semibold">Node Distances (from 0)</h2>
+                <pre id="distances-box" class="mt-2 p-3 bg-gray-700 rounded-lg text-base font-mono text-green-400 min-h-[100px] overflow-y-auto">
+Click 'Add Node' to begin.
+                </pre>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Canvas for Graph -->
+    <div class="flex-grow relative bg-gray-900">
+        <canvas id="graph-canvas" class="absolute top-0 left-0"></canvas>
+    </div>
+
+    <!-- Weight Input Modal -->
+    <div id="weight-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-8 shadow-xl space-y-4 w-80">
+            <h3 id="modal-title" class="text-xl font-semibold text-white">Enter Edge Weight</h3>
+            <p class="text-sm text-gray-400">Please provide an integer weight (positive or negative) for the new directed edge.</p>
+            <div>
+                <label for="weight-input" class="sr-only">Weight</label>
+                <input type="number" id="weight-input" class="w-full bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 5 or -3">
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button id="cancel-weight-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-gray-600 hover:bg-gray-700">Cancel</button>
+                <button id="submit-weight-btn" class="px-4 py-2 text-white rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed bg-green-600 hover:bg-green-700">Add Edge</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ====================================================================================
+        // SECTION 1: INITIAL SETUP & DOM ELEMENT SELECTION
+        // ====================================================================================
+
+        const canvas = document.getElementById('graph-canvas');
+        const ctx = canvas.getContext('2d');
+        const parent = canvas.parentElement;
+
+        const addNodeBtn = document.getElementById('add-node-btn');
+        const addEdgeBtn = document.getElementById('add-edge-btn');
+        const runBellmanFordBtn = document.getElementById('run-bellman-ford-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const statusBox = document.getElementById('status-box');
+        const distancesBox = document.getElementById('distances-box');
+        
+        const weightModal = document.getElementById('weight-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const weightInput = document.getElementById('weight-input');
+        const cancelWeightBtn = document.getElementById('cancel-weight-btn');
+        const submitWeightBtn = document.getElementById('submit-weight-btn');
+
+        const speedControl = document.getElementById('speed-control');
+        const speedLabel = document.getElementById('speed-label');
+
+        // ====================================================================================
+        // SECTION 2: GLOBAL STATE & CONSTANTS
+        // ====================================================================================
+
+        let nodes = [];
+        let edges = [];
+        let nextNodeId = 0;
+        let mode = null;
+        let selectedNode1 = null;
+        let isAlgorithmRunning = false;
+        let pendingEdge = null;
+        let animationSpeedMs = 1000;
+
+        const NODE_RADIUS = 20;
+        const NODE_COLOR = '#2563eb'; // Blue
+        const NODE_LABEL_COLOR = '#ffffff';
+        const NODE_HIGHLIGHT_COLOR = '#60a5fa'; // Lighter Blue
+        const RELAXED_NODE_COLOR = '#f97316'; // Orange
+        const NEGATIVE_CYCLE_COLOR = '#ef4444'; // Red
+        const EDGE_COLOR = '#6b7280';
+        const RELAXED_EDGE_COLOR = '#facc15'; // Yellow
+        const CHECKING_EDGE_COLOR = '#a5b4fc'; // Indigo Light
+
+        // ====================================================================================
+        // SECTION 3: DRAWING FUNCTIONS
+        // ====================================================================================
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            edges.forEach(edge => drawEdge(edge));
+            nodes.forEach(node => drawNode(node));
+        }
+
+        function drawNode(node) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+            
+            if (node.color) {
+                 ctx.fillStyle = node.color;
+            } else if (node.id === selectedNode1) {
+                ctx.fillStyle = NODE_HIGHLIGHT_COLOR;
+            } else {
+                ctx.fillStyle = NODE_COLOR;
+            }
+            ctx.fill();
+
+            // Draw node label (ID)
+            ctx.fillStyle = NODE_LABEL_COLOR;
+            ctx.font = 'bold 14px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.id, node.x, node.y - 7);
+
+            // Draw distance
+            ctx.font = '500 12px Inter';
+            const distText = node.distance === Infinity ? '∞' : node.distance;
+            ctx.fillText(distText, node.x, node.y + 10);
+        }
+
+        function drawEdge(edge) {
+            const fromNode = nodes.find(n => n.id === edge.from);
+            const toNode = nodes.find(n => n.id === edge.to);
+
+            if (!fromNode || !toNode) return;
+
+            const color = edge.color || EDGE_COLOR;
+            const width = 2;
+            
+            // Calculate angle and positions for arrow
+            const angle = Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x);
+            const startX = fromNode.x + NODE_RADIUS * Math.cos(angle);
+            const startY = fromNode.y + NODE_RADIUS * Math.sin(angle);
+            const endX = toNode.x - NODE_RADIUS * Math.cos(angle);
+            const endY = toNode.y - NODE_RADIUS * Math.sin(angle);
+
+            // Draw line
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.stroke();
+
+            // Draw arrowhead
+            const headlen = 10;
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Draw weight label
+            ctx.font = '500 14px Inter';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            // Position label slightly off the midpoint, perpendicular to the line
+            const midX = (startX + endX) / 2;
+            const midY = (startY + endY) / 2;
+            const offsetX = Math.sin(angle) * 15;
+            const offsetY = -Math.cos(angle) * 15;
+
+            const textWidth = ctx.measureText(edge.weight).width;
+            ctx.fillStyle = '#111827'; // Background for readability
+            ctx.fillRect(midX + offsetX - textWidth / 2 - 2, midY + offsetY - 10, textWidth + 4, 16);
+            
+            ctx.fillStyle = color;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(edge.weight, midX + offsetX, midY + offsetY);
+        }
+
+        // ====================================================================================
+        // SECTION 4: UI & STATE MANAGEMENT
+        // ====================================================================================
+
+        function showWeightModal() {
+            modalTitle.textContent = `Weight for edge (${pendingEdge.from} -> ${pendingEdge.to})`;
+            weightInput.value = '';
+            weightModal.classList.remove('hidden');
+            weightInput.focus();
+        }
+
+        function hideWeightModal() {
+            weightModal.classList.add('hidden');
+            pendingEdge = null;
+            selectedNode1 = null;
+            setMode('addEdgeStart');
+            draw();
+        }
+
+        function submitWeight() {
+            const weight = parseInt(weightInput.value);
+            // Allow negative weights, just check if it's a number
+            if (!isNaN(weight)) {
+                edges.push({ from: pendingEdge.from, to: pendingEdge.to, weight: weight });
+                hideWeightModal();
+            } else {
+                statusBox.textContent = 'Invalid weight. Please enter a number.';
+            }
+        }
+        
+        function setMode(newMode) {
+            mode = newMode;
+            updateButtonStyles();
+            switch (mode) {
+                case 'addNode':
+                    statusBox.textContent = 'Click on the canvas to add a node.';
+                    break;
+                case 'addEdgeStart':
+                    statusBox.textContent = 'Select the first (source) node.';
+                    break;
+                case 'addEdgeEnd':
+                    statusBox.textContent = `Selected node ${selectedNode1}. Select the second (destination) node.`;
+                    break;
+                default:
+                     statusBox.textContent = "Welcome! Click 'Add Node' to start.";
+            }
+        }
+        
+        function updateButtonStyles() {
+            addNodeBtn.classList.toggle('bg-blue-700', mode === 'addNode');
+            addNodeBtn.classList.toggle('bg-blue-600', mode !== 'addNode');
+            addEdgeBtn.classList.toggle('bg-blue-700', mode === 'addEdgeStart' || mode === 'addEdgeEnd');
+            addEdgeBtn.classList.toggle('bg-blue-600', mode !== 'addEdgeStart' && mode !== 'addEdgeEnd');
+        }
+
+        function reset() {
+            nodes = [];
+            edges = [];
+            nextNodeId = 0;
+            selectedNode1 = null;
+            isAlgorithmRunning = false;
+            setMode(null);
+            statusBox.textContent = "Welcome! Click 'Add Node' to start.";
+            updateDistancesDisplay(); // Clears the display
+            updateControlStates();
+            draw();
+        }
+
+        function updateControlStates() {
+            const hasNodes = nodes.length > 0;
+            const running = isAlgorithmRunning;
+
+            addNodeBtn.disabled = running;
+            addEdgeBtn.disabled = running || !hasNodes;
+            runBellmanFordBtn.disabled = running || !hasNodes;
+            speedControl.disabled = running;
+            resetBtn.disabled = running || hasNodes;
+        }
+
+        function resizeCanvas() {
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            draw();
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        /**
+         * Updates the "Node Distances" box in the UI.
+         */
+        function updateDistancesDisplay() {
+            if (nodes.length === 0) {
+                distancesBox.textContent = "Click 'Add Node' to begin.";
+                return;
+            }
+            // Sort by ID for consistent display
+            const sortedNodes = [...nodes].sort((a, b) => a.id - b.id);
+            let text = "";
+            for (const node of sortedNodes) {
+                const dist = node.distance === Infinity ? '∞' : node.distance;
+                text += `Node ${node.id}: ${dist}\n`;
+            }
+            distancesBox.textContent = text;
+        }
+
+        // ====================================================================================
+        // SECTION 5: EVENT LISTENERS
+        // ====================================================================================
+
+        addNodeBtn.addEventListener('click', () => setMode('addNode'));
+        addEdgeBtn.addEventListener('click', () => setMode('addEdgeStart'));
+        resetBtn.addEventListener('click', reset);
+        runBellmanFordBtn.addEventListener('click', runBellmanFord);
+
+        speedControl.addEventListener('input', (e) => {
+            const speedValue = e.target.value;
+            switch(speedValue) {
+                case '1':
+                    animationSpeedMs = 1500;
+                    speedLabel.textContent = 'Slow';
+                    break;
+                case '2':
+                    animationSpeedMs = 1000;
+                    speedLabel.textContent = 'Normal';
+                    break;
+                case '3':
+                    animationSpeedMs = 500;
+                    speedLabel.textContent = 'Fast';
+                    break;
+            }
+        });
+
+        cancelWeightBtn.addEventListener('click', hideWeightModal);
+        submitWeightBtn.addEventListener('click', submitWeight);
+        weightInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                submitWeight();
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (isAlgorithmRunning || pendingEdge) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const clickedNode = nodes.find(node => Math.hypot(node.x - x, node.y - y) < NODE_RADIUS);
+
+            if (mode === 'addNode') {
+                if (!clickedNode) {
+                    // Add node with default distance properties
+                    nodes.push({ id: nextNodeId++, x, y, distance: Infinity, predecessor: null, color: null });
+                    updateControlStates();
+                    updateDistancesDisplay();
+                }
+            } else if (mode === 'addEdgeStart') {
+                if (clickedNode) {
+                    selectedNode1 = clickedNode.id;
+                    setMode('addEdgeEnd');
+                }
+            } else if (mode === 'addEdgeEnd') {
+                if (clickedNode) { 
+                    // Allow edge to same node (cycles)
+                    const edgeExists = edges.some(edge => 
+                        (edge.from === selectedNode1 && edge.to === clickedNode.id)
+                    );
+                    if (!edgeExists) {
+                        pendingEdge = { from: selectedNode1, to: clickedNode.id };
+                        showWeightModal();
+                    } else {
+                        statusBox.textContent = 'A directed edge between these nodes already exists.';
+                        selectedNode1 = null;
+                        setMode('addEdgeStart');
+                    }
+                }
+            }
+            draw();
+        });
+        
+        window.addEventListener('resize', resizeCanvas);
+        
+        // ====================================================================================
+        // SECTION 6: BELLMAN-FORD ALGORITHM LOGIC
+        // ====================================================================================
+        
+        async function runBellmanFord() {
+            if (nodes.length === 0) {
+                statusBox.textContent = "Cannot run Bellman-Ford on an empty graph.";
+                return;
+            }
+            
+            isAlgorithmRunning = true;
+            updateControlStates();
+            resetAlgorithmState();
+            
+            // 1. Initialize distances
+            const sourceNode = nodes.find(n => n.id === 0);
+            if (!sourceNode) {
+                statusBox.textContent = "Graph must contain a Node 0 to use as the source.";
+                isAlgorithmRunning = false;
+                updateControlStates();
+                return;
+            }
+
+            sourceNode.distance = 0;
+            statusBox.textContent = `Starting with source Node 0. Distances set.`;
+            updateDistancesDisplay();
+            draw();
+            await sleep(animationSpeedMs);
+
+            // 2. Relax edges |V| - 1 times
+            for (let i = 0; i < nodes.length - 1; i++) {
+                let relaxedThisPass = false;
+                statusBox.textContent = `Running relaxation pass ${i + 1} / ${nodes.length - 1}...`;
+                
+                for (const edge of edges) {
+                    const u = nodes.find(n => n.id === edge.from);
+                    const v = nodes.find(n => n.id === edge.to);
+
+                    edge.color = CHECKING_EDGE_COLOR;
+                    draw();
+                    await sleep(animationSpeedMs / 2); // Faster check
+
+                    if (u.distance !== Infinity && u.distance + edge.weight < v.distance) {
+                        v.distance = u.distance + edge.weight;
+                        v.predecessor = u.id;
+                        relaxedThisPass = true;
+
+                        // Visualize the relaxation
+                        edge.color = RELAXED_EDGE_COLOR;
+                        v.color = RELAXED_NODE_COLOR;
+                        statusBox.textContent = `Pass ${i + 1}: Relaxed edge (${u.id}→${v.id}). New dist for ${v.id}: ${v.distance}`;
+                        updateDistancesDisplay();
+                        draw();
+                        await sleep(animationSpeedMs);
+                        v.color = null; // Reset temp color
+                    }
+                    edge.color = EDGE_COLOR; // Reset edge color
+                }
+                
+                if (!relaxedThisPass) {
+                    statusBox.textContent = `Pass ${i + 1}: No edges relaxed. Shortest paths found early.`;
+                    await sleep(animationSpeedMs * 1.5);
+                    break; // Early exit if no changes
+                }
+            }
+            
+            // 3. Check for negative-weight cycles
+            statusBox.textContent = "Checking for negative-weight cycles...";
+            await sleep(animationSpeedMs * 1.5);
+            let cycleFound = false;
+
+            for (const edge of edges) {
+                const u = nodes.find(n => n.id === edge.from);
+                const v = nodes.find(n => n.id === edge.to);
+                
+                if (u.distance !== Infinity && u.distance + edge.weight < v.distance) {
+                    // Negative cycle found!
+                    v.color = NEGATIVE_CYCLE_COLOR;
+                    edge.color = NEGATIVE_CYCLE_COLOR;
+                    statusBox.textContent = `Negative-weight cycle detected at edge (${u.id}→${v.id})!`;
+                    cycleFound = true;
+                    draw();
+                    await sleep(animationSpeedMs * 2);
+                    break;
+                }
+            }
+            
+            // 4. Algorithm finished
+            if (!cycleFound) {
+                statusBox.textContent = `Algorithm complete. Final shortest paths calculated.`;
+            }
+            isAlgorithmRunning = false;
+            updateControlStates();
+            edges.forEach(e => { if (e.color !== NEGATIVE_CYCLE_COLOR) e.color = EDGE_COLOR; });
+            draw();
+        }
+
+        /**
+         * Resets algorithm-related properties (distances, colors) without clearing the graph.
+         */
+        function resetAlgorithmState() {
+             nodes.forEach(n => {
+                n.distance = Infinity;
+                n.predecessor = null;
+                n.color = null;
+             });
+             edges.forEach(e => {
+                e.color = EDGE_COLOR;
+             });
+             updateDistancesDisplay();
+             draw();
+        }
+        
+        // ====================================================================================
+        // SECTION 7: APP INITIALIZATION
+        // ====================================================================================
+        
+        resizeCanvas();
+        updateControlStates();
+        updateDistancesDisplay();
+    </script>
+</body>
+</html>
